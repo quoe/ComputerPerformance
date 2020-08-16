@@ -1,9 +1,10 @@
-$CpuLogFile = 'D:\ProduceLogData\ProduceLog\ProduceLog_' + (Get-Date -Format "yyyy-MM-dd") + '.json'
+$CpuLogFile = 'C:\' + (Get-Date -Format "yyyy-MM-dd") + '.json'
 
-$computer 	= "LocalHost"
-$namespace 	= "root\CIMV2"
+'CpuLogFile' >> $CpuLogFile
+$computer 	= 'LocalHost'
+$namespace 	= 'root\CIMV2'
 
-$DateTime = (Get-Date -Format "dd.MM.yyyy HH:mm:ss")
+$DateTime = (Get-Date -Format 'dd.MM.yyyy HH:mm:ss')
 $objLogInfo = New-Object System.Object
 $objLogInfo | Add-Member -MemberType NoteProperty -Name DateTime -Value $DateTime
 
@@ -37,19 +38,20 @@ foreach ($driveLetter in $driveLetters)
 {
 	$drive = Get-WmiObject Win32_Volume | where {$_.DriveLetter -eq $driveLetter.DriveLetter}
 	
-	
 	if (-Not $drive.Capacity -eq 0)
 	{
-		$usedDiskSpace = $drive.Capacity - $drive.FreeSpace
+		$driveCapacity = $drive.Capacity
+		$usedDiskSpace = $driveCapacity - $drive.FreeSpace
 		$usedDiskSpacePct = [math]::Round(($usedDiskSpace / $drive.Capacity) * 100,1)
-		#$usedDiskSpacePct = "{0:N2}" -f $usedDiskSpacePct
 		$usedDiskSpaceDrives = $usedDiskSpaceDrives + $drive.Caption + '=' + $usedDiskSpacePct + '#'
 		
 		$objUsedDiskSpace = New-Object System.Object
 		$objUsedDiskSpace | Add-Member -MemberType NoteProperty -Name driveLetter -Value $drive.Caption
+		$objUsedDiskSpace | Add-Member -MemberType NoteProperty -Name usedDiskSpace -Value $usedDiskSpace
 		$objUsedDiskSpace | Add-Member -MemberType NoteProperty -Name usedDiskSpacePct -Value $usedDiskSpacePct
-		$objUsedDiskSpaceSO = $objUsedDiskSpace | Select-Object driveLetter,  usedDiskSpacePct
-		$objUsedDiskSpaceElem = @{driveLetter=$drive.Caption;usedDiskSpacePct=$usedDiskSpacePct}
+		$objUsedDiskSpace | Add-Member -MemberType NoteProperty -Name driveCapacity -Value $driveCapacity
+		$objUsedDiskSpaceSO = $objUsedDiskSpace | Select-Object driveLetter, driveCapacity, usedDiskSpace, usedDiskSpacePct
+		$objUsedDiskSpaceElem = @{driveLetter=$drive.Caption;driveCapacity=$driveCapacity;usedDiskSpace=$usedDiskSpace;usedDiskSpacePct=$usedDiskSpacePct}
 		$usedDiskSpaceList.Add($objUsedDiskSpaceElem)
 	}
 }
@@ -59,9 +61,9 @@ $objHostInfo | Add-Member -MemberType NoteProperty -Name usedDiskSpaceDrives -Va
 
 $objHostInfoStr = 'ComputerCpu=' + $ComputerCpu + ';CpuLoadAverage=' + $CpuLoadAverage + ';PercentMemoryUsed=' + $PercentMemoryUsed + ';usedDiskSpaceDrives={' + $usedDiskSpaceDrives + '}'
 
-$Processes = Get-Process | Sort-Object CPU -desc | Select-Object Name, Id, Path, Handles, NPM, PM, WS, CPU, SI, ProcessName, StartTime, @{Name="StartTimeFormat"; Expression={$_.StartTime.ToString("dd.MM.yyyy HH:mm")}} -first 5
+$Processes = Get-Process | Sort-Object CPU -desc | Select-Object Name, Id, Path, Handles, NPM, PM, WS, CPU, SI, ProcessName, StartTime, @{Name='StartTimeFormat'; Expression={$_.StartTime.ToString('yyyyMMddHHmmss')}} -first 5
 
-$TopMemoryUsage = get-wmiobject WIN32_PROCESS | Sort-Object -Property ws -Descending|select -first 10|Select processname, @{Name="Mem Usage(MB)";Expression={[math]::round($_.ws / 1mb)}},@{Name="ProcessID";Expression={[String]$_.ProcessID}},@{Name="UserID";Expression={$_.getowner().user}}
+$TopMemoryUsage = get-wmiobject WIN32_PROCESS | Sort-Object -Property ws -Descending|select -first 5|Select processname, @{Name='Mem Usage(MB)';Expression={[math]::round($_.ws / 1mb)}},@{Name='ProcessID';Expression={[String]$_.ProcessID}},@{Name='UserID';Expression={$_.getowner().user}}
 
 $NetworkInterfaces = [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()
 $NetworkInterfacesList = new-object 'System.Collections.Generic.List[System.Object]'
@@ -85,4 +87,5 @@ foreach ($NetworkInterface in $NetworkInterfaces)
 }
 
 $ProduceLog = @{LogInfo=$objLogInfo;HostInfo=$objHostInfo;ProcessesInfo=$Processes;TopMemoryUsageInfo=$TopMemoryUsage;NetworkInterfaceInfo=$NetworkInterfacesList}
-$ProduceLog | ConvertTo-Json -Depth 4 >> $CpuLogFile
+$ProduceLog | ConvertTo-Json -Depth 4 | Out-File $CpuLogFile
+exit 1
